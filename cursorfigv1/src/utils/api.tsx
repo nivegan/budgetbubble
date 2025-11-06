@@ -74,28 +74,33 @@ export const householdAPI = {
  * Transaction API calls
  */
 export const transactionAPI = {
+  // Updated to match usage in Transactions.tsx
   getAll: (householdId: string, personalView: boolean, accessToken: string) =>
     apiCall(`/transactions?householdId=${householdId}&personalView=${personalView}`, {
       method: 'GET',
     }, accessToken),
   
+  // Updated to match usage in Transactions.tsx
   create: (transaction: any, accessToken: string) =>
     apiCall('/transactions', {
       method: 'POST',
       body: JSON.stringify(transaction),
     }, accessToken),
   
+  // Updated to match usage in Transactions.tsx
   update: (id: string, updates: any, accessToken: string) =>
     apiCall(`/transactions/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
     }, accessToken),
   
+  // Updated to match usage in Transactions.tsx
   delete: (id: string, householdId: string, personalView: boolean, accessToken: string) =>
     apiCall(`/transactions/${id}?householdId=${householdId}&personalView=${personalView}`, {
       method: 'DELETE',
     }, accessToken),
   
+  // This is the manual upload, SmartUploadDialog uses its own fetch
   upload: async (file: File, householdId: string, personalView: boolean, mapping: any, skipRows: number, accessToken: string) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -124,21 +129,7 @@ export const transactionAPI = {
 };
 
 /**
- * Template API calls
- */
-export const templateAPI = {
-  getAll: (accessToken: string) =>
-    apiCall('/templates', { method: 'GET' }, accessToken),
-  
-  create: (name: string, mapping: any, skipRows: number, accessToken: string) =>
-    apiCall('/templates', {
-      method: 'POST',
-      body: JSON.stringify({ name, mapping, skipRows }),
-    }, accessToken),
-};
-
-/**
- * Goal API calls
+ * Pockets API calls (Renamed from goalAPI)
  */
 export const goalAPI = {
   getAll: (householdId: string, accessToken: string) =>
@@ -184,19 +175,24 @@ export const subscriptionAPI = {
  * Holdings API calls
  */
 export const holdingsAPI = {
-  getAll: (householdId: string, accessToken: string) =>
-    apiCall(`/holdings?householdId=${householdId}`, { method: 'GET' }, accessToken),
+  // UPDATED to support personal view
+  getAll: (householdId: string, personalView: boolean, accessToken: string) =>
+    apiCall(`/holdings?householdId=${householdId}&personalView=${personalView}`, { 
+      method: 'GET' 
+    }, accessToken),
   
+  // UPDATED to support personal flag
   create: (holding: any, accessToken: string) =>
     apiCall('/holdings', {
       method: 'POST',
       body: JSON.stringify(holding),
     }, accessToken),
   
-  update: (id: string, currentValue: number, householdId: string, accessToken: string) =>
+  // UPDATED to support personal view
+  update: (id: string, currentValue: number, householdId: string, personalView: boolean, accessToken: string) =>
     apiCall(`/holdings/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ currentValue, householdId }),
+      body: JSON.stringify({ currentValue, householdId, personalView }),
     }, accessToken),
 };
 

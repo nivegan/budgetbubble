@@ -3,11 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Plus, Upload, Pencil, Trash2, Search } from 'lucide-react';
 import { transactionAPI } from '../utils/api';
-import { SmartUploadDialog } from './SmartUploadDialog';
+import { SmartUploadDialog } from './SmartUploadDialog'; // <-- Use new dialog
 
 interface TransactionsProps {
   accessToken: string;
@@ -20,7 +20,7 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
   const [filteredTransactions, setFilteredTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [showUploadDialog, setShowUploadDialog] = useState(false); // <-- This controls the new dialog
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -34,15 +34,7 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
     category: 'Uncategorized',
   });
 
-  useEffect(() => {
-    loadTransactions();
-  }, [householdId, isPersonalView]);
-
-  useEffect(() => {
-    filterTransactions();
-  }, [transactions, searchTerm, categoryFilter, typeFilter]);
-
-  const loadTransactions = async () => {
+  const loadTransactions = React.useCallback(async () => {
     setLoading(true);
     try {
       const data = await transactionAPI.getAll(householdId, isPersonalView, accessToken);
@@ -52,40 +44,38 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
     } finally {
       setLoading(false);
     }
-  };
+  }, [householdId, isPersonalView, accessToken]);
 
-  const filterTransactions = () => {
+  useEffect(() => {
+    loadTransactions();
+  }, [loadTransactions]);
+
+  useEffect(() => {
     let filtered = [...transactions];
 
-    // Search filter
     if (searchTerm) {
       filtered = filtered.filter(t => 
         t.description.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-
-    // Category filter
     if (categoryFilter !== 'all') {
       filtered = filtered.filter(t => t.category === categoryFilter);
     }
-
-    // Type filter
     if (typeFilter !== 'all') {
       filtered = filtered.filter(t => t.type === typeFilter);
     }
 
-    // Sort by date (newest first)
     filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
     setFilteredTransactions(filtered);
-  };
+  }, [transactions, searchTerm, categoryFilter, typeFilter]);
 
   const handleAddTransaction = async () => {
     try {
       await transactionAPI.create({
         ...formData,
+        amount: parseFloat(formData.amount),
         householdId,
-        personalView: isPersonalView,
+        personal: isPersonalView, // <-- Send personal flag
       }, accessToken);
       
       setShowAddDialog(false);
@@ -125,20 +115,11 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
   };
 
   const categories = [
-    'Uncategorized',
-    'Food & Dining',
-    'Shopping',
-    'Transportation',
-    'Bills & Utilities',
-    'Entertainment',
-    'Healthcare',
-    'Education',
-    'Travel',
-    'Income',
-    'Other',
+    'Uncategorized', 'Food & Dining', 'Shopping', 'Transportation', 'Bills & Utilities',
+    'Entertainment', 'Healthcare', 'Education', 'Travel', 'Income', 'Other',
   ];
 
-  const uniqueCategories = Array.from(new Set(transactions.map(t => t.category)));
+  const uniqueCategories = Array.from(new Set(transactions.map(t => t.category).concat(categories)));
 
   return (
     <div className="space-y-6">
@@ -241,7 +222,7 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-slate-700 border-slate-600">
-                            {categories.map(cat => (
+                            {uniqueCategories.map(cat => (
                               <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                             ))}
                           </SelectContent>
@@ -256,10 +237,10 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
                           {transaction.type}
                         </span>
                       </TableCell>
-                      <TableCell className={`text-right ${
-                        transaction.type === 'income' ? 'text-emerald-400' : 'text-red-400'
+                      <TableCell className={`text-right font-medium ${
+                        transaction.type === 'income' ? 'text-emerald-400' : 'text-slate-100'
                       }`}>
-                        ${transaction.amount.toFixed(2)}
+                        {transaction.type === 'expense' ? '-' : ''}${transaction.amount.toFixed(2)}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -286,7 +267,7 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
           <DialogHeader>
             <DialogTitle>Add Transaction</DialogTitle>
             <DialogDescription className="text-slate-400">
-              Manually add a new transaction
+              Manually add a new transaction to your {isPersonalView ? "Personal" : "Household"} view.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -342,7 +323,7 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-700 border-slate-600">
-                  {categories.map(cat => (
+                  {uniqueCategories.map(cat => (
                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
                 </SelectContent>

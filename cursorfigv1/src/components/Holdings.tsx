@@ -1,13 +1,12 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Plus, TrendingUp, TrendingDown, Upload } from 'lucide-react';
 import { holdingsAPI } from '../utils/api';
-import { SmartUploadDialog } from './SmartUploadDialog';
+import { SmartUploadDialog } from './SmartUploadDialog'; // <-- NEW ROBUST DIALOG
 
 interface HoldingsProps {
   accessToken: string;
@@ -31,29 +30,30 @@ export function Holdings({ accessToken, householdId, isPersonalView }: HoldingsP
     currentValue: '',
   });
 
-  useEffect(() => {
-    if (!isPersonalView) {
-      loadHoldings();
-    }
-  }, [householdId, isPersonalView]);
-
-  const loadHoldings = async () => {
+  // Updated to load holdings in BOTH views
+  const loadHoldings = React.useCallback(async () => {
     setLoading(true);
     try {
-      const data = await holdingsAPI.getAll(householdId, accessToken);
+      // Pass isPersonalView to the API
+      const data = await holdingsAPI.getAll(householdId, isPersonalView, accessToken);
       setHoldings(data.holdings || []);
     } catch (error) {
       console.error('Failed to load holdings:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [householdId, isPersonalView, accessToken]);
+
+  useEffect(() => {
+    loadHoldings();
+  }, [loadHoldings]);
 
   const handleAddHolding = async () => {
     try {
       await holdingsAPI.create({
         ...formData,
         householdId,
+        personal: isPersonalView, // Tell API if this is a personal holding
       }, accessToken);
       
       setShowAddDialog(false);
@@ -73,6 +73,7 @@ export function Holdings({ accessToken, householdId, isPersonalView }: HoldingsP
         selectedHolding.id,
         parseFloat(updateValue),
         householdId,
+        isPersonalView, // Pass view context
         accessToken
       );
       
@@ -86,158 +87,141 @@ export function Holdings({ accessToken, householdId, isPersonalView }: HoldingsP
     }
   };
 
-  const totalValue = holdings.reduce((sum, h) => sum + h.currentValue, 0);
-  const totalGain = holdings.reduce((sum, h) => sum + (h.currentValue - h.initialValue), 0);
-  const totalGainPercent = holdings.reduce((sum, h) => sum + h.initialValue, 0) > 0
-    ? (totalGain / holdings.reduce((sum, h) => sum + h.initialValue, 0)) * 100
-    : 0;
-
-  if (isPersonalView) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center text-slate-400">
-          <TrendingUp className="w-16 h-16 mx-auto mb-4 opacity-50" />
-          <p>Holdings are only available in Household view</p>
-          <p className="text-sm mt-2">Switch to Household view to track assets</p>
-        </div>
-      </div>
-    );
-  }
+  const totalValue = holdings.reduce((sum, h) => sum + (h.currentValue || 0), 0);
+  const totalInitialValue = holdings.reduce((sum, h) => sum + (h.initialValue || 0), 0);
+  const totalGain = totalValue - totalInitialValue;
+  const totalGainPercent = totalInitialValue > 0 ? (totalGain / totalInitialValue) * 100 : 0;
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="assets" className="w-full">
-        <TabsList className="bg-slate-800 border-slate-700">
-          <TabsTrigger value="assets" className="data-[state=active]:bg-emerald-400 data-[state=active]:text-slate-900">
-            Assets & Investments
-          </TabsTrigger>
-          {/* IOU and Gifts moved to Ledgers tab */}
-        </TabsList>
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-slate-100">Assets & Investments</h2>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setShowUploadDialog(true)} // <-- This now opens the new dialog
+            className="bg-slate-700 hover:bg-slate-600 text-slate-100"
+          >
+            <Upload size={18} className="mr-2" />
+            Upload CSV/XLS
+          </Button>
+          <Button
+            onClick={() => setShowAddDialog(true)}
+            className="bg-emerald-400 hover:bg-emerald-500 text-slate-900"
+          >
+            <Plus size={18} className="mr-2" />
+            Add Holding
+          </Button>
+        </div>
+      </div>
 
-        <TabsContent value="assets" className="space-y-6 mt-6">
-          {/* Header */}
-          <div className="flex justify-between items-center">
-            <h2 className="text-slate-100">Assets & Investments</h2>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="bg-slate-800 border-slate-700">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-300">Total Value</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-400">${totalValue.toFixed(2)}</div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-800 border-slate-700">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-300">Total Gain/Loss</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${totalGain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {totalGain >= 0 ? '+' : ''}${totalGain.toFixed(2)}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-800 border-slate-700">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-300">Return %</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${totalGainPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {totalGainPercent >= 0 ? '+' : ''}{totalGainPercent.toFixed(2)}%
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Holdings List */}
+      {loading ? (
+        <div className="text-center py-8 text-slate-400">Loading holdings...</div>
+      ) : holdings.length === 0 ? (
+        <Card className="bg-slate-800 border-slate-700">
+          <CardContent className="py-12 text-center">
+            <TrendingUp className="w-16 h-16 mx-auto mb-4 text-slate-600" />
+            <h3 className="text-slate-300 mb-2">No holdings yet</h3>
+            <p className="text-slate-400 mb-4">
+              {isPersonalView ? "Add your first personal holding" : "Add your first household holding"}
+            </p>
             <Button
               onClick={() => setShowAddDialog(true)}
               className="bg-emerald-400 hover:bg-emerald-500 text-slate-900"
             >
-              <Plus size={18} className="mr-2" />
-              Add Holding
+              Add Your First Holding
             </Button>
-          </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {holdings.map((holding) => {
+            const gain = (holding.currentValue || 0) - (holding.initialValue || 0);
+            const gainPercent = (holding.initialValue && holding.initialValue !== 0) ? (gain / holding.initialValue) * 100 : 0;
 
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-slate-300">Total Value</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-emerald-400">${totalValue.toFixed(2)}</div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-slate-300">Total Gain/Loss</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className={totalGain >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                  {totalGain >= 0 ? '+' : ''}${totalGain.toFixed(2)}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-slate-300">Return %</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className={totalGainPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                  {totalGainPercent >= 0 ? '+' : ''}{totalGainPercent.toFixed(2)}%
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Holdings List */}
-          {loading ? (
-            <div className="text-center py-8 text-slate-400">Loading holdings...</div>
-          ) : holdings.length === 0 ? (
-            <Card className="bg-slate-800 border-slate-700">
-              <CardContent className="py-12 text-center">
-                <TrendingUp className="w-16 h-16 mx-auto mb-4 text-slate-600" />
-                <h3 className="text-slate-300 mb-2">No holdings yet</h3>
-                <p className="text-slate-400 mb-4">
-                  Track your assets, investments, real estate, and more
-                </p>
-                <Button
-                  onClick={() => setShowAddDialog(true)}
-                  className="bg-emerald-400 hover:bg-emerald-500 text-slate-900"
-                >
-                  Add Your First Holding
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {holdings.map((holding) => {
-                const gain = holding.currentValue - holding.initialValue;
-                const gainPercent = (gain / holding.initialValue) * 100;
-
-                return (
-                  <Card key={holding.id} className="bg-slate-800 border-slate-700">
-                    <CardHeader>
-                      <CardTitle className="flex justify-between items-start">
-                        <div>
-                          <div className="text-slate-100">{holding.name}</div>
-                          <div className="text-sm text-slate-400 capitalize mt-1">{holding.type}</div>
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedHolding(holding);
-                            setUpdateValue(String(holding.currentValue));
-                            setShowUpdateDialog(true);
-                          }}
-                          className="bg-emerald-400 hover:bg-emerald-500 text-slate-900"
-                        >
-                          Update
-                        </Button>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Current Value:</span>
-                        <span className="text-slate-100">${holding.currentValue.toFixed(2)}</span>
+            return (
+              <Card key={holding.id} className="bg-slate-800 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="flex justify-between items-start">
+                    <div>
+                      <div className="text-slate-100">{holding.name}</div>
+                      <div className="text-sm text-slate-400 capitalize mt-1">{holding.type}</div>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setSelectedHolding(holding);
+                        setUpdateValue(String(holding.currentValue));
+                        setShowUpdateDialog(true);
+                      }}
+                      className="bg-emerald-400 hover:bg-emerald-500 text-slate-900"
+                    >
+                      Update
+                    </Button>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Current Value:</span>
+                    <span className="text-slate-100">${(holding.currentValue || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Initial Value:</span>
+                    <span className="text-slate-300">${(holding.initialValue || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-700">
+                    <span className="text-slate-400">Gain/Loss:</span>
+                    <div className="text-right">
+                      <div className={`flex items-center justify-end gap-1 ${gain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {gain >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                        <span>{gain >= 0 ? '+' : ''}${gain.toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Initial Value:</span>
-                        <span className="text-slate-300">${holding.initialValue.toFixed(2)}</span>
+                      <div className={`text-sm ${gain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {gain >= 0 ? '+' : ''}{gainPercent.toFixed(2)}%
                       </div>
-                      <div className="flex justify-between items-center pt-2 border-t border-slate-700">
-                        <span className="text-slate-400">Gain/Loss:</span>
-                        <div className="text-right">
-                          <div className={`flex items-center gap-1 ${gain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {gain >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                            <span>{gain >= 0 ? '+' : ''}${gain.toFixed(2)}</span>
-                          </div>
-                          <div className={`text-sm ${gain >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {gain >= 0 ? '+' : ''}{gainPercent.toFixed(2)}%
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* Ledgers moved out */}
-      </Tabs>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {/* Add Holding Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
@@ -245,7 +229,7 @@ export function Holdings({ accessToken, householdId, isPersonalView }: HoldingsP
           <DialogHeader>
             <DialogTitle>Add New Holding</DialogTitle>
             <DialogDescription className="text-slate-400">
-              Track an asset or investment
+              Track an asset or investment. This will be added to your {isPersonalView ? "Personal" : "Household"} view.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -289,7 +273,7 @@ export function Holdings({ accessToken, householdId, isPersonalView }: HoldingsP
             </div>
 
             <div className="space-y-2">
-              <label className="text-slate-300">Current Value (optional)</label>
+              <label className="text-slate-300">Current Value</label>
               <Input
                 type="number"
                 step="0.01"
@@ -342,7 +326,7 @@ export function Holdings({ accessToken, householdId, isPersonalView }: HoldingsP
         </DialogContent>
       </Dialog>
 
-      {/* Upload Dialog */}
+      {/* NEW UPLOAD DIALOG */}
       <SmartUploadDialog
         open={showUploadDialog}
         onClose={() => setShowUploadDialog(false)}

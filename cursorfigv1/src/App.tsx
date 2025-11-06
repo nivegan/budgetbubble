@@ -1,186 +1,143 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createClient, Session } from '@supabase/supabase-js';
+import { Auth } from '@supabase/auth-ui-react';
+import { ThemeSupa } from '@supabase/auth-ui-shared';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Sidebar } from './components/Sidebar';
 import { LoginPage } from './components/LoginPage';
 import { HouseholdSetup } from './components/HouseholdSetup';
-import { Sidebar } from './components/Sidebar';
-import { ViewToggle } from './components/ViewToggle';
-import { Dashboard } from './components/Dashboard';
-import { Finances } from './components/Finances';
-import { Goals } from './components/Goals';
+import { Dashboard } from './components/Dashboard'; // <-- NEW
+import { Transactions } from './components/Transactions';
+import { Pockets } from './components/Pockets'; // <-- RENAMED
+import { Holdings } from './components/Holdings';
 import { Settings } from './components/Settings';
-import { getSession, signOut } from './utils/auth';
-import { householdAPI, userAPI } from './utils/api';
+import { userAPI, householdAPI } from './utils/api';
+import { projectId, publicAnonKey } from './utils/supabase/info';
+import { ViewToggle } from './components/ViewToggle';
+import { AlertCircle, Home, LogOut, Settings as SettingsIcon, User, Users } from 'lucide-react';
+
+const supabase = createClient(
+  `https://${projectId}.supabase.co`,
+  publicAnonKey
+);
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [accessToken, setAccessToken] = useState<string>('');
-  const [userId, setUserId] = useState<string>('');
-  const [user, setUser] = useState<any>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [household, setHousehold] = useState<any>(null);
-  const [currentTab, setCurrentTab] = useState('dashboard');
-  const [isPersonalView, setIsPersonalView] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isPersonalView, setIsPersonalView] = useState(false);
 
   useEffect(() => {
-    checkAuth();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) {
+        loadData(session.access_token);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        loadData(session.access_token);
+      } else {
+        setProfile(null);
+        setHousehold(null);
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (isAuthenticated && accessToken) {
-      loadUserData();
-    }
-  }, [isAuthenticated, accessToken]);
-
-  /**
-   * Check if user has an active session
-   */
-  const checkAuth = async () => {
+  const loadData = async (token: string) => {
+    setLoading(true);
     try {
-      const { session, user } = await getSession();
-      if (session && user) {
-        setIsAuthenticated(true);
-        setAccessToken(session.access_token);
-        setUserId(user.id);
+      const userProfile = await userAPI.getProfile(token);
+      setProfile(userProfile);
+      
+      const households = await householdAPI.getMy(token);
+      if (households && households.length > 0) {
+        setHousehold(households[0]); // Auto-select first household
+      } else {
+        setHousehold(null); // No household found
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      console.error('Error loading data:', error);
+      // Handle error, e.g., sign out user if token is invalid
+      if ((error as Error).message.includes('401')) {
+        await supabase.auth.signOut();
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  /**
-   * Load user profile and household data
-   */
-  const loadUserData = async () => {
-    try {
-      const [userProfile, householdData] = await Promise.all([
-        userAPI.getProfile(accessToken),
-        householdAPI.getMy(accessToken),
-      ]);
-
-      setUser(userProfile.user);
-      setHousehold(householdData.household);
-    } catch (error) {
-      console.error('Failed to load user data:', error);
-    }
-  };
-
-  /**
-   * Handle successful login
-   */
-  const handleLoginSuccess = (token: string, id: string) => {
-    setAccessToken(token);
-    setUserId(id);
-    setIsAuthenticated(true);
-  };
-
-  /**
-   * Handle household setup completion
-   */
-  const handleHouseholdSetupComplete = () => {
-    loadUserData();
-  };
-
-  /**
-   * Handle logout
-   */
   const handleLogout = async () => {
-    await signOut();
-    setIsAuthenticated(false);
-    setAccessToken('');
-    setUserId('');
-    setUser(null);
-    setHousehold(null);
-    setCurrentTab('dashboard');
-    setIsPersonalView(false);
+    await supabase.auth.signOut();
   };
 
-  // Loading state
   if (loading) {
-    return (
-      <div className="min-h-screen bg-[#2c3e50] flex items-center justify-center">
-        <div className="text-[#c1d3e0]">Loading BudgetBubble...</div>
-      </div>
-    );
+    return <div className="bg-slate-900 text-slate-100 h-screen w-full flex items-center justify-center">Loading...</div>;
   }
 
-  // Not authenticated - show login
-  if (!isAuthenticated) {
-    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  if (!session) {
+    return <LoginPage supabaseClient={supabase} />;
   }
 
-  // Authenticated but no household - show setup
   if (!household) {
-    return (
-      <HouseholdSetup
-        accessToken={accessToken}
-        onComplete={handleHouseholdSetupComplete}
-      />
-    );
+    return <HouseholdSetup 
+            accessToken={session.access_token} 
+            onHouseholdCreated={() => loadData(session.access_token)} 
+          />;
   }
+  
+  const mainContentProps = {
+    accessToken: session.access_token,
+    householdId: household.id,
+    isPersonalView,
+  };
 
-  // Main application
   return (
-    <div className="flex h-screen bg-[#2c3e50]">
-      {/* Sidebar Navigation */}
-      <Sidebar
-        currentTab={currentTab}
-        onTabChange={setCurrentTab}
-        onLogout={handleLogout}
-      />
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar with View Toggle */}
-        <div className="bg-[#3d5a80] border-b border-[#577189] px-6 py-4 flex justify-between items-center shadow-md">
-          <div className="text-white">
-            <span className="text-[#c1d3e0]">Household:</span>{' '}
-            <span>{household.name}</span>
+    <div className="flex h-screen bg-slate-900 text-slate-100">
+      <Sidebar profile={profile} onLogout={handleLogout} />
+      <main className="flex-1 flex flex-col overflow-auto">
+        <header className="flex-shrink-0 flex items-center justify-between p-4 border-b border-slate-700">
+          <div className="text-lg font-semibold text-white">
+            <CurrentPageTitle />
           </div>
-          <ViewToggle
-            isPersonalView={isPersonalView}
-            onToggle={setIsPersonalView}
+          <ViewToggle 
+            isPersonalView={isPersonalView} 
+            setIsPersonalView={setIsPersonalView} 
           />
+        </header>
+        <div className="flex-1 overflow-y-auto p-6 md:p-8">
+          <Routes>
+            <Route path="/" element={<Dashboard {...mainContentProps} />} />
+            <Route path="/transactions" element={<Transactions {...mainContentProps} />} />
+            <Route path="/pockets" element={<Pockets {...mainContentProps} setIsPersonalView={setIsPersonalView} />} />
+            <Route path="/holdings" element={<Holdings {...mainContentProps} />} />
+            <Route path="/settings" element={<Settings {...mainContentProps} profile={profile} household={household} />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto bg-[#2c3e50]">
-          <div className="max-w-7xl mx-auto p-6">
-            {currentTab === 'dashboard' && (
-              <Dashboard
-                accessToken={accessToken}
-                householdId={household.id}
-                isPersonalView={isPersonalView}
-              />
-            )}
-            
-            {currentTab === 'finances' && (
-              <Finances
-                accessToken={accessToken}
-                householdId={household.id}
-                isPersonalView={isPersonalView}
-              />
-            )}
-            
-            {currentTab === 'goals' && (
-              <Goals
-                accessToken={accessToken}
-                householdId={household.id}
-                isPersonalView={isPersonalView}
-              />
-            )}
-            
-            {currentTab === 'settings' && (
-              <Settings
-                accessToken={accessToken}
-                user={user}
-                household={household}
-                onHouseholdUpdate={loadUserData}
-              />
-            )}
-          </div>
-        </div>
-      </div>
+      </main>
     </div>
   );
+}
+
+function CurrentPageTitle() {
+  const location = useLocation();
+  switch (location.pathname) {
+    case '/': return 'Dashboard';
+    case '/transactions': return 'Transactions';
+    case '/pockets': return 'Pockets';
+    case '/holdings': return 'Assets & Investments';
+    case '/settings': return 'Settings';
+    default: return 'Dashboard';
+  }
 }
