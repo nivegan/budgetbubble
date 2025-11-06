@@ -1,0 +1,223 @@
+import { projectId, publicAnonKey } from './supabase/info';
+
+const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-ecf79a0e`;
+
+/**
+ * Helper function to make authenticated API calls
+ */
+async function apiCall(
+  endpoint: string,
+  options: RequestInit = {},
+  accessToken?: string
+) {
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${accessToken || publicAnonKey}`,
+    ...options.headers,
+  };
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error(`API Error [${endpoint}]:`, data);
+    throw new Error(data.error || 'API request failed');
+  }
+
+  return data;
+}
+
+/**
+ * User API calls
+ */
+export const userAPI = {
+  getProfile: (accessToken: string) => 
+    apiCall('/user/profile', { method: 'GET' }, accessToken),
+  
+  updateProfile: (name: string, accessToken: string) =>
+    apiCall('/user/profile', {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+    }, accessToken),
+};
+
+/**
+ * Household API calls
+ */
+export const householdAPI = {
+  create: (name: string, currency: string, accessToken: string) =>
+    apiCall('/households', {
+      method: 'POST',
+      body: JSON.stringify({ name, currency }),
+    }, accessToken),
+  
+  getMy: (accessToken: string) =>
+    apiCall('/households/my', { method: 'GET' }, accessToken),
+  
+  addMember: (householdId: string, email: string, accessToken: string) =>
+    apiCall(`/households/${householdId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }, accessToken),
+  
+  removeMember: (householdId: string, memberId: string, accessToken: string) =>
+    apiCall(`/households/${householdId}/members/${memberId}`, {
+      method: 'DELETE',
+    }, accessToken),
+};
+
+/**
+ * Transaction API calls
+ */
+export const transactionAPI = {
+  getAll: (householdId: string, personalView: boolean, accessToken: string) =>
+    apiCall(`/transactions?householdId=${householdId}&personalView=${personalView}`, {
+      method: 'GET',
+    }, accessToken),
+  
+  create: (transaction: any, accessToken: string) =>
+    apiCall('/transactions', {
+      method: 'POST',
+      body: JSON.stringify(transaction),
+    }, accessToken),
+  
+  update: (id: string, updates: any, accessToken: string) =>
+    apiCall(`/transactions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    }, accessToken),
+  
+  delete: (id: string, householdId: string, personalView: boolean, accessToken: string) =>
+    apiCall(`/transactions/${id}?householdId=${householdId}&personalView=${personalView}`, {
+      method: 'DELETE',
+    }, accessToken),
+  
+  upload: async (file: File, householdId: string, personalView: boolean, mapping: any, skipRows: number, accessToken: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('householdId', householdId);
+    formData.append('personalView', String(personalView));
+    formData.append('mapping', JSON.stringify(mapping));
+    formData.append('skipRows', String(skipRows));
+
+    const response = await fetch(`${API_BASE_URL}/transactions/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('Upload error:', data);
+      throw new Error(data.error || 'Upload failed');
+    }
+
+    return data;
+  },
+};
+
+/**
+ * Template API calls
+ */
+export const templateAPI = {
+  getAll: (accessToken: string) =>
+    apiCall('/templates', { method: 'GET' }, accessToken),
+  
+  create: (name: string, mapping: any, skipRows: number, accessToken: string) =>
+    apiCall('/templates', {
+      method: 'POST',
+      body: JSON.stringify({ name, mapping, skipRows }),
+    }, accessToken),
+};
+
+/**
+ * Goal API calls
+ */
+export const goalAPI = {
+  getAll: (householdId: string, accessToken: string) =>
+    apiCall(`/goals?householdId=${householdId}`, { method: 'GET' }, accessToken),
+  
+  create: (goal: any, accessToken: string) =>
+    apiCall('/goals', {
+      method: 'POST',
+      body: JSON.stringify(goal),
+    }, accessToken),
+
+  update: (goalId: string, updates: any, householdId: string, accessToken: string) =>
+    apiCall(`/goals/${goalId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...updates, householdId }),
+    }, accessToken),
+
+  delete: (goalId: string, householdId: string, accessToken: string) =>
+    apiCall(`/goals/${goalId}?householdId=${householdId}`, { method: 'DELETE' }, accessToken),
+
+  inactivate: (goalId: string, householdId: string, accessToken: string) =>
+    apiCall(`/goals/${goalId}/inactive`, { 
+      method: 'POST',
+      body: JSON.stringify({ householdId }),
+    }, accessToken),
+};
+
+/**
+ * Subscriptions API calls
+ */
+export const subscriptionAPI = {
+  detect: (householdId: string, accessToken: string) =>
+    apiCall('/subscriptions/detect', {
+      method: 'POST',
+      body: JSON.stringify({ householdId }),
+    }, accessToken),
+  
+  getAll: (householdId: string, accessToken: string) =>
+    apiCall(`/subscriptions?householdId=${householdId}`, { method: 'GET' }, accessToken),
+};
+
+/**
+ * Holdings API calls
+ */
+export const holdingsAPI = {
+  getAll: (householdId: string, accessToken: string) =>
+    apiCall(`/holdings?householdId=${householdId}`, { method: 'GET' }, accessToken),
+  
+  create: (holding: any, accessToken: string) =>
+    apiCall('/holdings', {
+      method: 'POST',
+      body: JSON.stringify(holding),
+    }, accessToken),
+  
+  update: (id: string, currentValue: number, householdId: string, accessToken: string) =>
+    apiCall(`/holdings/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ currentValue, householdId }),
+    }, accessToken),
+};
+
+export const ledgerAPI = {
+  addIou: async (iou: any, accessToken: string) => apiCall(
+    '/ledgers/iou', {
+      method: 'POST',
+      body: JSON.stringify(iou),
+    }, accessToken
+  ),
+  listIous: async (householdId: string, accessToken: string) => apiCall(
+      `/ledgers/iou?householdId=${householdId}`, {
+        method: 'GET'}, accessToken
+  ),
+  addGift: async (gift: any, accessToken: string) => apiCall(
+    '/ledgers/gift', {
+      method: 'POST',
+      body: JSON.stringify(gift),
+    }, accessToken
+  ),
+  listGifts: async (householdId: string, accessToken: string) => apiCall(
+    `/ledgers/gift?householdId=${householdId}`, {method: 'GET'}, accessToken
+  ),
+};
