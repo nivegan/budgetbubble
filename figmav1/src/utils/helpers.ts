@@ -46,3 +46,29 @@ export const convertCurrency = (
   
   return amountInTarget;
 };
+
+// figmav1/src/utils/helpers.ts
+
+export const formatCurrency = (
+  amount: number,
+  currency: string,
+  compact = false
+) => {
+  if (isNaN(amount)) {
+    amount = 0;
+  }
+  
+  const options: Intl.NumberFormatOptions = {
+    style: 'currency',
+    currency: currency || 'USD',
+    notation: compact ? 'compact' : 'standard',
+  };
+
+  try {
+    return new Intl.NumberFormat('en-US', options).format(amount);
+  } catch (e) {
+    // Fallback for unknown currency (e.g., if user types "BTC")
+    options.currency = 'USD';
+    return new Intl.NumberFormat('en-US', options).format(amount);
+  }
+};

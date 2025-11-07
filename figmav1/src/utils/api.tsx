@@ -83,12 +83,56 @@ export const transactionAPI = {
     apiCall('/transactions', {
       method: 'POST',
       body: JSON.stringify(transaction),
+      smartUpload: async (formData: FormData, token: string, type: 'transactions' | 'holdings') => {
+    const endpoint = type === 'transactions'
+      ? '/transactions/smart-upload'
+      : '/holdings/upload';
+
+    const url = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/make-server-ecf79a0e${endpoint}`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Upload failed');
+    }
+
+    return response.json();
+  }
     }, accessToken),
   
   update: (id: string, updates: any, accessToken: string) =>
     apiCall(`/transactions/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
+      smartUpload: async (formData: FormData, token: string, type: 'transactions' | 'holdings') => {
+    const endpoint = type === 'transactions'
+      ? '/transactions/smart-upload'
+      : '/holdings/upload';
+
+    const url = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/make-server-ecf79a0e${endpoint}`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Upload failed');
+    }
+
+    return response.json();
+  }
     }, accessToken),
   
   delete: (id: string, householdId: string, personalView: boolean, accessToken: string) =>
@@ -190,3 +234,4 @@ export const holdingsAPI = {
       body: JSON.stringify({ currentValue, householdId, personalView }),
     }, accessToken),
 };
+
