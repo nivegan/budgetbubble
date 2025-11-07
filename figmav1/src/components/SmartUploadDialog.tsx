@@ -207,7 +207,7 @@ export function SmartUploadDialog({
                 <label className="text-[#c1d3e0]">Select File</label>
                 <Input
                   type="file"
-                  accept=".csv" // Recommend CSV for best parsing results
+                  accept=".csv,.xls,.xlsx" // Recommend CSV for best parsing results
                   onChange={handleFileSelect}
                   className="bg-[#34495e] border-[#577189] text-white"
                   disabled={loading}

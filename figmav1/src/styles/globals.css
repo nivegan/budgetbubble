@@ -1,190 +1,92 @@
-@custom-variant dark (&:is(.dark *));
-
-:root {
-  --font-size: 16px;
-  /* Retro color palette inspired by navy, coral, and turquoise */
-  --background: #2c3e50;
-  --foreground: #f8f9fa;
-  --card: #3d5a80;
-  --card-foreground: #f8f9fa;
-  --popover: #3d5a80;
-  --popover-foreground: #f8f9fa;
-  --primary: #69d2bb;
-  --primary-foreground: #2c3e50;
-  --secondary: #ee6c4d;
-  --secondary-foreground: #f8f9fa;
-  --muted: #577189;
-  --muted-foreground: #c1d3e0;
-  --accent: #ee8b88;
-  --accent-foreground: #2c3e50;
-  --destructive: #ee6c4d;
-  --destructive-foreground: #f8f9fa;
-  --border: #577189;
-  --input: transparent;
-  --input-background: #34495e;
-  --switch-background: #577189;
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --ring: #69d2bb;
-  --chart-1: #69d2bb;
-  --chart-2: #ee8b88;
-  --chart-3: #ffd166;
-  --chart-4: #ee6c4d;
-  --chart-5: #a7c4db;
-  --radius: 0.375rem;
-  --sidebar: #34495e;
-  --sidebar-foreground: #f8f9fa;
-  --sidebar-primary: #69d2bb;
-  --sidebar-primary-foreground: #2c3e50;
-  --sidebar-accent: #3d5a80;
-  --sidebar-accent-foreground: #f8f9fa;
-  --sidebar-border: #577189;
-  --sidebar-ring: #69d2bb;
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-input-background: var(--input-background);
-  --color-switch-background: var(--switch-background);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-}
+/*
+//
+// 🔁 MODIFIED FILE: figmav1/src/styles/globals.css
+//
+*/
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
+  :root {
+    --background: 222 47% 11%; /* #111827 - Updated to a darker blue */
+    --foreground: 210 40% 98%; /* #f9fafb */
+
+    --card: 222 47% 15%; /* #1a2233 - Slightly lighter card */
+    --card-foreground: 210 40% 98%; /* #f9fafb */
+ 
+    --popover: 222 47% 11%; /* #111827 */
+    --popover-foreground: 210 40% 98%; /* #f9fafb */
+ 
+    --primary: 168 58% 65%; /* #86efac - Lighter green for primary */
+    --primary-foreground: 222 47% 11%; /* #111827 */
+ 
+    --secondary: 217 33% 32%; /* #374151 */
+    --secondary-foreground: 210 40% 98%; /* #f9fafb */
+ 
+    --muted: 217 33% 32%; /* #374151 */
+    --muted-foreground: 215 28% 63%; /* #8e9aab */
+ 
+    --accent: 217 33% 32%; /* #374151 */
+    --accent-foreground: 210 40% 98%; /* #f9fafb */
+ 
+    --destructive: 0 63% 31%; /* #b91c1c */
+    --destructive-foreground: 210 40% 98%; /* #f9fafb */
+
+    --border: 217 33% 27%; /* #303744 - Slightly lighter border */
+    --input: 217 33% 27%; /* #303744 */
+    --ring: 168 58% 65%; /* #86efac */
+ 
+    --radius: 0.5rem;
   }
 
+  .dark {
+    --background: 222 47% 11%; /* #111827 */
+    --foreground: 210 40% 98%; /* #f9fafb */
+
+    --card: 222 47% 15%; /* #1a2233 */
+    --card-foreground: 210 40% 98%; /* #f9fafb */
+ 
+    --popover: 222 47% 11%; /* #111827 */
+    --popover-foreground: 210 40% 98%; /* #f9fafb */
+ 
+    --primary: 168 58% 65%; /* #86efac */
+    --primary-foreground: 222 47% 11%; /* #111827 */
+ 
+    --secondary: 217 33% 32%; /* #374151 */
+    --secondary-foreground: 210 40% 98%; /* #f9fafb */
+ 
+    --muted: 217 33% 32%; /* #374151 */
+    --muted-foreground: 215 28% 63%; /* #8e9aab */
+ 
+    --accent: 217 33% 32%; /* #374151 */
+    --accent-foreground: 210 40% 98%; /* #f9fafb */
+ 
+    --destructive: 0 63% 31%; /* #b91c1c */
+    --destructive-foreground: 210 40% 98%; /* #f9fafb */
+
+    --border: 217 33% 27%; /* #303744 */
+    --input: 217 33% 27%; /* #303744 */
+    --ring: 168 58% 65%; /* #86efac */
+  }
+}
+ 
+@layer base {
+  * {
+    @apply border-border;
+  }
   body {
     @apply bg-background text-foreground;
   }
 }
 
-/**
- * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
- */
-@layer base {
-  :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
-    h1 {
-      font-size: var(--text-2xl);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
-    }
-
-    h2 {
-      font-size: var(--text-xl);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
-    }
-
-    h3 {
-      font-size: var(--text-lg);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
-    }
-
-    h4 {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
-    }
-
-    p {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-normal);
-      line-height: 1.5;
-    }
-
-    label {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
-    }
-
-    button {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
-    }
-
-    input {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-normal);
-      line-height: 1.5;
-    }
-  }
+/* REQ #22: Visual Cue for Personal View 
+  This changes the sidebar border color when in personal view 
+*/
+.personal-view aside {
+  @apply border-r-[#69d2bb] !important;
 }
 
-html {
-  font-size: var(--font-size);
+.personal-view aside > div {
+  @apply border-b-[#69d2bb] !important;
 }
