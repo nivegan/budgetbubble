@@ -6,15 +6,18 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Calendar } from './ui/calendar';
 import { ArrowUpCircle, ArrowDownCircle, Wallet, Calendar as CalendarIcon } from 'lucide-react';
 import { transactionAPI, holdingsAPI } from '../utils/api';
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { formatCurrency } from '../utils/helpers'; // <-- Import formatter
+import { toast } from 'sonner'; // <-- Import toast
 
 interface DashboardProps {
   accessToken: string;
   householdId: string;
   isPersonalView: boolean;
+  householdCurrency: string; // <-- Prop for currency
 }
 
-export function Dashboard({ accessToken, householdId, isPersonalView }: DashboardProps) {
+export function Dashboard({ accessToken, householdId, isPersonalView, householdCurrency }: DashboardProps) {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [holdings, setHoldings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,20 +27,21 @@ export function Dashboard({ accessToken, householdId, isPersonalView }: Dashboar
 
   useEffect(() => {
     loadData();
-  }, [householdId, isPersonalView]);
+  }, [householdId, isPersonalView, accessToken]); // Added accessToken
 
   const loadData = async () => {
     setLoading(true);
     try {
       const [txData, holdingData] = await Promise.all([
         transactionAPI.getAll(householdId, isPersonalView, accessToken),
-        isPersonalView ? { holdings: [] } : holdingsAPI.getAll(householdId, accessToken),
+        isPersonalView ? Promise.resolve({ holdings: [] }) : holdingsAPI.getAll(householdId, accessToken),
       ]);
       
       setTransactions(txData.transactions || []);
       setHoldings(holdingData.holdings || []);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
+      toast.error('Failed to load dashboard data.');
     } finally {
       setLoading(false);
     }
@@ -56,7 +60,6 @@ export function Dashboard({ accessToken, householdId, isPersonalView }: Dashboar
         startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
         break;
       case 'fy':
-        // Fiscal year (assuming Jan-Dec, adjust as needed)
         startDate = new Date(now.getFullYear(), 0, 1);
         break;
       case '1-year':
@@ -71,17 +74,22 @@ export function Dashboard({ accessToken, householdId, isPersonalView }: Dashboar
         return transactions;
     }
 
+    const endDate = dateRange === 'custom' && customEndDate ? customEndDate : new Date();
+
     return transactions.filter(t => {
       const txDate = new Date(t.date);
-      if (dateRange === 'custom' && customEndDate) {
-        return txDate >= startDate && txDate <= customEndDate;
-      }
-      return txDate >= startDate;
+      return txDate >= startDate && txDate <= endDate;
     });
   };
 
   const filteredTransactions = getFilteredTransactions();
 
+  // --- CURRENCY CONVERSION NOTE ---
+  // The calculations below assume all transactions and holdings are in the *same*
+  // currency. For true multi-currency conversion, you must fetch exchange
+  // rates from a backend function and convert each `t.amount` and `h.currentValue`
+  // to the `householdCurrency` *before* summing them.
+  
   // Calculate summary stats
   const totalIncome = filteredTransactions
     .filter(t => t.type === 'income')
@@ -91,7 +99,6 @@ export function Dashboard({ accessToken, householdId, isPersonalView }: Dashboar
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  // Calculate cash savings (income - expenses from transactions)
   const cashSavings = totalIncome - totalExpense;
   
   const holdingsValue = holdings.reduce((sum, h) => sum + h.currentValue, 0);
@@ -108,7 +115,7 @@ export function Dashboard({ accessToken, householdId, isPersonalView }: Dashboar
 
   const pieData = Object.entries(categoryData).map(([name, value]) => ({
     name,
-    value,
+    value: value as number,
   }));
 
   // Calculate monthly spending trend
@@ -133,12 +140,26 @@ export function Dashboard({ accessToken, householdId, isPersonalView }: Dashboar
 
   const COLORS = ['#69d2bb', '#ee8b88', '#ffd166', '#ee6c4d', '#a7c4db', '#577189'];
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  // Custom Tooltip for Charts
+  const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+      // For Bar chart
+      if (label) {
+        const income = payload.find((p:any) => p.dataKey === 'income')?.value || 0;
+        const expense = payload.find((p:any) => p.dataKey === 'expense')?.value || 0;
+        return (
+          <div className="bg-[#3d5a80] p-3 rounded border border-[#577189] shadow-lg">
+            <p className="text-white font-bold mb-2">{label}</p>
+            <p className="text-[#69d2bb]">Income: {formatCurrency(income, householdCurrency)}</p>
+            <p className="text-[#ee8b88]">Expense: {formatCurrency(expense, householdCurrency)}</p>
+          </div>
+        );
+      }
+      // For Pie chart
       return (
         <div className="bg-[#3d5a80] p-3 rounded border border-[#577189] shadow-lg">
-          <p className="text-[#69d2bb]">{payload[0].name}</p>
-          <p className="text-white">${payload[0].value.toFixed(2)}</p>
+          <p className="text-white">{payload[0].name}</p>
+          <p className="text-white font-bold">{formatCurrency(payload[0].value, householdCurrency)}</p>
         </div>
       );
     }
@@ -157,7 +178,7 @@ export function Dashboard({ accessToken, householdId, isPersonalView }: Dashboar
     <div className="space-y-6">
       {/* Header with Date Range Filter */}
       <div className="flex justify-between items-center">
-        <h2 className="text-white">Dashboard</h2>
+        <h2 className="text-white text-2xl font-semibold">Dashboard</h2>
         <div className="flex gap-2 items-center">
           <Select value={dateRange} onValueChange={setDateRange}>
             <SelectTrigger className="w-48 bg-[#34495e] border-[#577189] text-white">
@@ -220,7 +241,7 @@ export function Dashboard({ accessToken, householdId, isPersonalView }: Dashboar
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-white">${totalIncome.toFixed(2)}</div>
+            <div className="text-white text-2xl font-bold">{formatCurrency(totalIncome, householdCurrency)}</div>
           </CardContent>
         </Card>
 
@@ -232,7 +253,7 @@ export function Dashboard({ accessToken, householdId, isPersonalView }: Dashboar
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-white">${totalExpense.toFixed(2)}</div>
+            <div className="text-white text-2xl font-bold">{formatCurrency(totalExpense, householdCurrency)}</div>
           </CardContent>
         </Card>
 
@@ -244,8 +265,8 @@ export function Dashboard({ accessToken, householdId, isPersonalView }: Dashboar
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={cashSavings >= 0 ? 'text-[#69d2bb]' : 'text-[#ee8b88]'}>
-              ${cashSavings.toFixed(2)}
+            <div className={`text-2xl font-bold ${cashSavings >= 0 ? 'text-[#69d2bb]' : 'text-[#ee8b88]'}`}>
+              {formatCurrency(cashSavings, householdCurrency)}
             </div>
           </CardContent>
         </Card>
@@ -258,18 +279,18 @@ export function Dashboard({ accessToken, householdId, isPersonalView }: Dashboar
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-white">${netWorth.toFixed(2)}</div>
+            <div className="text-white text-2xl font-bold">{formatCurrency(netWorth, householdCurrency)}</div>
             <p className="text-xs text-[#a7b8c5] mt-1">
-              Cash + Holdings
+              Cash Savings + Holdings (Estimate)
             </p>
           </CardContent>
         </Card>
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Spending by Category */}
-        <Card className="bg-[#3d5a80] border-[#577189]">
+        <Card className="lg:col-span-2 bg-[#3d5a80] border-[#577189]">
           <CardHeader>
             <CardTitle className="text-white">Spending by Category</CardTitle>
           </CardHeader>
@@ -282,10 +303,10 @@ export function Dashboard({ accessToken, householdId, isPersonalView }: Dashboar
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                    outerRadius={80}
+                    outerRadius={100}
                     fill="#8884d8"
                     dataKey="value"
+                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
                   >
                     {pieData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -296,14 +317,14 @@ export function Dashboard({ accessToken, householdId, isPersonalView }: Dashboar
               </ResponsiveContainer>
             ) : (
               <div className="h-[300px] flex items-center justify-center text-[#c1d3e0]">
-                No expense data
+                No expense data for this period
               </div>
             )}
           </CardContent>
         </Card>
 
         {/* Monthly Trend */}
-        <Card className="bg-[#3d5a80] border-[#577189]">
+        <Card className="lg:col-span-3 bg-[#3d5a80] border-[#577189]">
           <CardHeader>
             <CardTitle className="text-white">Income vs Expenses</CardTitle>
           </CardHeader>
@@ -313,16 +334,16 @@ export function Dashboard({ accessToken, householdId, isPersonalView }: Dashboar
                 <BarChart data={lineData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#577189" />
                   <XAxis dataKey="month" stroke="#c1d3e0" />
-                  <YAxis stroke="#c1d3e0" />
+                  <YAxis stroke="#c1d3e0" tickFormatter={(val) => formatCurrency(val, householdCurrency, 0)} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend wrapperStyle={{ color: '#c1d3e0' }} />
-                  <Bar dataKey="income" fill="#69d2bb" />
-                  <Bar dataKey="expense" fill="#ee8b88" />
+                  <Bar dataKey="income" fill="#69d2bb" name="Income" />
+                  <Bar dataKey="expense" fill="#ee8b88" name="Expense" />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="h-[300px] flex items-center justify-center text-[#c1d3e0]">
-                No transaction data
+                No transaction data for this period
               </div>
             )}
           </CardContent>
@@ -342,8 +363,8 @@ export function Dashboard({ accessToken, householdId, isPersonalView }: Dashboar
                   <div className="text-white">{tx.description}</div>
                   <div className="text-xs text-[#a7b8c5]">{new Date(tx.date).toLocaleDateString()}</div>
                 </div>
-                <div className={tx.type === 'income' ? 'text-[#69d2bb]' : 'text-[#ee8b88]'}>
-                  {tx.type === 'income' ? '+' : '-'}${tx.amount.toFixed(2)}
+                <div className={`font-medium ${tx.type === 'income' ? 'text-[#69d2bb]' : 'text-[#ee8b88]'}`}>
+                  {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount, tx.currency || householdCurrency)}
                 </div>
               </div>
             ))}

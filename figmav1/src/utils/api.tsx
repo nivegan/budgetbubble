@@ -235,3 +235,39 @@ export const holdingsAPI = {
     }, accessToken),
 };
 
+// API for managing people (for IOU and Gift dropdowns)
+export const peopleAPI = {
+  getAll: async (householdId: string, token: string) => {
+    return apiRequest(`/people?householdId=eq.${householdId}`, token);
+  },
+  create: async (data: { name: string; householdId: string }, token: string) => {
+    // Use 'return=representation' to get the new row back
+    return apiRequest(`/people?select=*`, token, 'POST', data, {
+      Prefer: 'return=representation',
+    });
+  },
+};
+
+// API for IOU Ledger
+export const iouAPI = {
+  getAll: async (householdId: string, token: string) => {
+    // Use select=* to get all columns, including foreign key data if set up
+    return apiRequest(`/ious?select=*&householdId=eq.${householdId}`, token);
+  },
+  create: async (data: any, token: string) => {
+    return apiRequest(`/ious`, token, 'POST', data);
+  },
+  update: async (id: string, data: any, householdId: string, token: string) => {
+    return apiRequest(`/ious?id=eq.${id}&householdId=eq.${householdId}`, token, 'PATCH', data);
+  },
+};
+
+// API for Gift Tracker
+export const giftAPI = {
+  getAll: async (householdId: string, token: string) => {
+    return apiRequest(`/gifts?select=*&householdId=eq.${householdId}`, token);
+  },
+  create: async (data: any, token: string) => {
+    return apiRequest(`/gifts`, token, 'POST', data);
+  },
+};

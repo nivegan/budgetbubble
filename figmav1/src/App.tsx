@@ -1,193 +1,138 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from './utils/supabase/info';
+import { Session } from '@supabase/supabase-js';
 import { LoginPage } from './components/LoginPage';
-import { HouseholdSetup } from './components/HouseholdSetup';
 import { Sidebar } from './components/Sidebar';
+import { DashboardNew } from './components/DashboardNew';
+import { Transactions } from './components/Transactions';
+import { SettingsNew } from './components/SettingsNew';
+import { HouseholdSetup } from './components/HouseholdSetup';
 import { ViewToggle } from './components/ViewToggle';
-import { Dashboard } from './components/Dashboard';
-import { Finances } from './components/Finances';
-import { Pockets } from './components/Pockets'; // <-- RENAMED
-import { Settings } from './components/Settings';
-import { getSession, signOut } from './utils/auth';
-import { householdAPI, userAPI } from './utils/api';
+import { householdAPI } from './utils/api';
+import { SavingsGoals } from './components/SavingsGoals';   // <-- IMPORT NEW
+import { AssetsLedgers } from './components/AssetsLedgers'; // <-- IMPORT NEW
+
+// Remove individual component imports if they are now inside consolidated pages
+// (e.g., Pockets, Subscriptions, Holdings, IouTracker, GiftTracker)
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [accessToken, setAccessToken] = useState<string>('');
-  const [userId, setUserId] = useState<string>('');
+  const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<any>(null);
   const [household, setHousehold] = useState<any>(null);
-  const [currentTab, setCurrentTab] = useState('dashboard'); // <-- DEFAULT TO DASHBOARD
-  const [isPersonalView, setIsPersonalView] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [currentView, setCurrentView] = useState('Dashboard');
+  const [isPersonalView, setIsPersonalView] = useState(false);
 
   useEffect(() => {
-    checkAuth();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) {
+        fetchData(session);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        fetchData(session);
+      } else {
+        setLoading(false);
+        setUser(null);
+        setHousehold(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (isAuthenticated && accessToken) {
-      loadUserData();
-    }
-  }, [isAuthenticated, accessToken]);
-
-  /**
-   * Check if user has an active session
-   */
-  const checkAuth = async () => {
+  const fetchData = async (session: Session) => {
+    setLoading(true);
     try {
-      const { session, user } = await getSession();
-      if (session && user) {
-        setIsAuthenticated(true);
-        setAccessToken(session.access_token);
-        setUserId(user.id);
+      const { data, error } = await householdAPI.getHousehold(session.access_token);
+      
+      if (error) throw error;
+      
+      if (data.household) {
+        setHousehold(data.household);
+        setUser(data.user);
+      } else {
+        // No household, user needs to set one up
+        setUser(data.user);
+        setHousehold(null);
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  /**
-   * Load user profile and household data
-   */
-  const loadUserData = async () => {
-    setLoading(true); // Ensure loading state is set
-    try {
-      const [userProfile, householdData] = await Promise.all([
-        userAPI.getProfile(accessToken),
-        householdAPI.getMy(accessToken),
-      ]);
+  const onHouseholdUpdate = () => {
+    if (session) fetchData(session);
+  };
 
-      setUser(userProfile.user);
-      setHousehold(householdData.household);
-    } catch (error) {
-      console.error('Failed to load user data:', error);
-    } finally {
-      setLoading(false); // Clear loading state
+  const renderView = () => {
+    if (!household || !user || !session) return null;
+
+    const props = {
+      accessToken: session.access_token,
+      householdId: household.id,
+      isPersonalView,
+      // Pass the household object or currency to all components that need it
+      household: household,
+      householdCurrency: household.currency || 'USD',
+    };
+
+    switch (currentView) {
+      case 'Dashboard':
+        return <DashboardNew {...props} />;
+      case 'Transactions':
+        return <Transactions {...props} />;
+      
+      // --- NEW CONSOLIDATED VIEWS ---
+      case 'Savings & Goals':
+        return <SavingsGoals {...props} onToggleView={() => setIsPersonalView(false)} />;
+      case 'Assets & Ledgers':
+        return <AssetsLedgers {...props} />;
+      // --- END NEW VIEWS ---
+
+      case 'Settings':
+        return <SettingsNew {...props} user={user} onHouseholdUpdate={onHouseholdUpdate} />;
+      default:
+        return <DashboardNew {...props} />;
     }
   };
 
-  /**
-   * Handle successful login
-   */
-  const handleLoginSuccess = (token: string, id: string) => {
-    setAccessToken(token);
-    setUserId(id);
-    setIsAuthenticated(true);
-  };
-
-  /**
-   * Handle household setup completion
-   */
-  const handleHouseholdSetupComplete = () => {
-    loadUserData();
-  };
-
-  /**
-   * Handle logout
-   */
-  const handleLogout = async () => {
-    await signOut();
-    setIsAuthenticated(false);
-    setAccessToken('');
-    setUserId('');
-    setUser(null);
-    setHousehold(null);
-    setCurrentTab('dashboard');
-    setIsPersonalView(false);
-  };
-
-  // Loading state
   if (loading) {
-    return (
-      <div className="min-h-screen bg-[#2c3e50] flex items-center justify-center">
-        <div className="text-[#c1d3e0]">Loading BudgetBubble...</div>
-      </div>
-    );
+    return <div className="bg-[#2c3e50] h-screen w-screen flex items-center justify-center text-white">Loading...</div>;
   }
 
-  // Not authenticated - show login
-  if (!isAuthenticated) {
-    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  if (!session) {
+    return <LoginPage />;
   }
 
-  // Authenticated but no household - show setup
   if (!household) {
-    return (
-      <HouseholdSetup
-        accessToken={accessToken}
-        onComplete={handleHouseholdSetupComplete}
-      />
-    );
+    return <HouseholdSetup user={user} onSetupComplete={onHouseholdUpdate} />;
   }
 
-  // Main application
   return (
     <div className="flex h-screen bg-[#2c3e50]">
-      {/* Sidebar Navigation */}
-      <Sidebar
-        currentTab={currentTab}
-        onTabChange={setCurrentTab}
-        onLogout={handleLogout}
-      />
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar with View Toggle */}
-        <div className="bg-[#3d5a80] border-b border-[#577189] px-6 py-4 flex justify-between items-center shadow-md">
-          <div className="text-white">
-            <span className="text-[#c1d3e0]">Household:</span>{' '}
-            <span>{household.name}</span>
-          </div>
+      <Sidebar currentView={currentView} onViewChange={setCurrentView} />
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <header className="bg-[#2c3e50] p-4 flex justify-end border-b border-[#577189]/50">
           <ViewToggle
             isPersonalView={isPersonalView}
             onToggle={setIsPersonalView}
           />
+        </header>
+        <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+          {renderView()}
         </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto bg-[#2c3e50]">
-          <div className="max-w-7xl mx-auto p-6">
-            {currentTab === 'dashboard' && (
-              <Dashboard
-                accessToken={accessToken}
-                householdId={household.id}
-                isPersonalView={isPersonalView}
-              />
-            )}
-            
-            {currentTab === 'finances' && (
-              <Finances
-                accessToken={accessToken}
-                householdId={household.id}
-                isPersonalView={isPersonalView}
-                // Pass toggle function to components
-                onToggleView={() => setIsPersonalView(false)}
-              />
-            )}
-            
-            {currentTab === 'pockets' && ( // <-- RENAMED
-              <Pockets // <-- RENAMED
-                accessToken={accessToken}
-                householdId={household.id}
-                isPersonalView={isPersonalView}
-                // Pass toggle function to components
-                onToggleView={() => setIsPersonalView(false)}
-              />
-            )}
-            
-            {currentTab === 'settings' && (
-              <Settings
-                accessToken={accessToken}
-                user={user}
-                household={household}
-                onHouseholdUpdate={loadUserData}
-              />
-            )}
-          </div>
-        </div>
-      </div>
+      </main>
     </div>
   );
 }

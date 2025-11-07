@@ -5,22 +5,25 @@ import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Plus, Upload, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Upload, Trash2, Search } from 'lucide-react';
 import { transactionAPI } from '../utils/api';
-import { SmartUploadDialog } from './SmartUploadDialog'; // <-- Use new dialog
+import { SmartUploadDialog } from './SmartUploadDialog';
+import { formatCurrency } from '../utils/helpers'; // <-- Import formatter
+import { toast } from 'sonner'; // <-- Import toast
 
 interface TransactionsProps {
   accessToken: string;
   householdId: string;
   isPersonalView: boolean;
+  householdCurrency: string; // <-- Prop for currency
 }
 
-export function Transactions({ accessToken, householdId, isPersonalView }: TransactionsProps) {
+export function Transactions({ accessToken, householdId, isPersonalView, householdCurrency }: TransactionsProps) {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [showUploadDialog, setShowUploadDialog] = useState(false); // <-- This controls the new dialog
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -32,6 +35,7 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
     amount: '',
     type: 'expense',
     category: 'Uncategorized',
+    currency: householdCurrency, // <-- Add currency to form
   });
   
   const loadTransactions = React.useCallback(async () => {
@@ -41,6 +45,7 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
       setTransactions(data.transactions || []);
     } catch (error) {
       console.error('Failed to load transactions:', error);
+      toast.error('Failed to load transactions.');
     } finally {
       setLoading(false);
     }
@@ -49,6 +54,11 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
   useEffect(() => {
     loadTransactions();
   }, [loadTransactions]);
+  
+  // Update form currency if household currency changes
+  useEffect(() => {
+    setFormData(fd => ({ ...fd, currency: householdCurrency }));
+  }, [householdCurrency]);
 
   useEffect(() => {
     let filtered = [...transactions];
@@ -70,12 +80,17 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
   }, [transactions, searchTerm, categoryFilter, typeFilter]);
 
   const handleAddTransaction = async () => {
+    if (!formData.description || !formData.amount) {
+      toast.error('Please fill out a description and amount.');
+      return;
+    }
+    
     try {
       await transactionAPI.create({
         ...formData,
         amount: parseFloat(formData.amount),
         householdId,
-        personal: isPersonalView, // <-- Send personal flag
+        personal: isPersonalView,
       }, accessToken);
       
       setShowAddDialog(false);
@@ -85,11 +100,13 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
         amount: '',
         type: 'expense',
         category: 'Uncategorized',
+        currency: householdCurrency,
       });
       loadTransactions();
+      toast.success('Transaction added!');
     } catch (error) {
       console.error('Failed to add transaction:', error);
-      alert('Failed to add transaction');
+      toast.error('Failed to add transaction.');
     }
   };
 
@@ -99,9 +116,10 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
     try {
       await transactionAPI.delete(id, householdId, isPersonalView, accessToken);
       loadTransactions();
+      toast.success('Transaction deleted.');
     } catch (error) {
       console.error('Failed to delete transaction:', error);
-      alert('Failed to delete transaction');
+      toast.error('Failed to delete transaction.');
     }
   };
 
@@ -109,8 +127,10 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
     try {
       await transactionAPI.update(id, { category, householdId, personalView: isPersonalView }, accessToken);
       loadTransactions();
+      toast.success('Category updated.');
     } catch (error) {
       console.error('Failed to update category:', error);
+      toast.error('Failed to update category.');
     }
   };
 
@@ -132,7 +152,7 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
             className="bg-[#3d5a80] hover:bg-[#4a6d9c] text-slate-100"
           >
             <Upload size={18} className="mr-2" />
-            Upload CSV
+            Upload File
           </Button>
           <Button
             onClick={() => setShowAddDialog(true)}
@@ -191,7 +211,7 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
             <div className="text-center py-8 text-slate-400">Loading transactions...</div>
           ) : filteredTransactions.length === 0 ? (
             <div className="text-center py-8 text-slate-400">
-              No transactions found. Add your first transaction or upload a CSV file.
+              No transactions found. Add your first transaction or upload a file.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -240,7 +260,9 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
                       <TableCell className={`text-right font-medium ${
                         transaction.type === 'income' ? 'text-emerald-400' : 'text-slate-100'
                       }`}>
-                        {transaction.type === 'expense' ? '-' : ''}${transaction.amount.toFixed(2)}
+                        {transaction.type === 'expense' ? '-' : ''}
+                        {/* Use formatter, pass householdCurrency as a fallback */}
+                        {formatCurrency(transaction.amount, transaction.currency || householdCurrency)}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -291,16 +313,27 @@ export function Transactions({ accessToken, householdId, isPersonalView }: Trans
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-slate-300">Amount</label>
-              <Input
-                type="number"
-                step="0.01"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                className="bg-[#34495e] border-[#577189] text-slate-100"
-                placeholder="0.00"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-slate-300">Amount</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={formData.amount}
+                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  className="bg-[#34495e] border-[#577189] text-slate-100"
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-slate-300">Currency</label>
+                <Input
+                  value={formData.currency}
+                  onChange={(e) => setFormData({ ...formData, currency: e.target.value.toUpperCase() })}
+                  className="bg-[#34495e] border-[#577189] text-slate-100"
+                  placeholder="e.g., USD"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">

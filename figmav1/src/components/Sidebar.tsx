@@ -1,63 +1,59 @@
-import { LayoutDashboard, Wallet, Target, Settings, LogOut } from 'lucide-react';
-import { Button } from './ui/button';
+import {
+  BarChart2,
+  Wallet,
+  Settings,
+  Target,
+  Landmark,
+  ArrowLeftRight,
+  Gift,
+  Repeat,
+  Package, // New icon for combined page
+  PiggyBank, // New icon for combined page
+} from 'lucide-react';
 import { BubbleLogo } from './BubbleLogo';
 
 interface SidebarProps {
-  currentTab: string;
-  onTabChange: (tab: string) => void;
-  onLogout: () => void;
+  currentView: string;
+  onViewChange: (view: string) => void;
 }
 
-export function Sidebar({ currentTab, onTabChange, onLogout }: SidebarProps) {
-  const tabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'finances', label: 'Finances', icon: Wallet },
-    { id: 'pockets', label: 'Pockets', icon: Target }, // <-- RENAMED
-    { id: 'settings', label: 'Settings', icon: Settings },
+export function Sidebar({ currentView, onViewChange }: SidebarProps) {
+  
+  // New, consolidated nav items
+  const navItems = [
+    { name: 'Dashboard', icon: BarChart2 },
+    { name: 'Transactions', icon: Wallet },
+    { name: 'Savings & Goals', icon: PiggyBank }, // <-- New consolidated page
+    { name: 'Assets & Ledgers', icon: Package },   // <-- New consolidated page
+    { name: 'Settings', icon: Settings },
   ];
 
   return (
-    <div className="w-64 bg-[#34495e] border-r border-[#577189] flex flex-col h-screen shadow-lg">
-      {/* Logo */}
-      <div className="p-6 border-b border-[#577189]">
-        <div className="flex items-center gap-3">
-          <BubbleLogo size={40} />
-          <h1 className="text-[#69d2bb]">BudgetBubble</h1>
-        </div>
+    <div className="w-64 bg-[#34495e] text-slate-300 flex flex-col h-screen p-4 border-r border-[#577189]/50">
+      <div className="flex items-center gap-2 mb-8 px-2">
+        <BubbleLogo className="h-8 w-8" />
+        <span className="text-white text-2xl font-bold">Bubble</span>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                currentTab === tab.id
-                  ? 'bg-[#69d2bb]/20 text-[#69d2bb] shadow-md border border-[#69d2bb]/30'
-                  : 'text-[#c1d3e0] hover:bg-[#3d5a80]'
-              }`}
-            >
-              <Icon size={20} />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+      <nav className="flex flex-col gap-2">
+        {navItems.map((item) => (
+          <button
+            key={item.name}
+            onClick={() => onViewChange(item.name)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              currentView === item.name
+                ? 'bg-[#69d2bb] text-[#2c3e50] font-semibold'
+                : 'hover:bg-[#3d5a80]/60 text-slate-300'
+            }`}
+          >
+            <item.icon size={20} />
+            <span>{item.name}</span>
+          </button>
+        ))}
       </nav>
-
-      {/* Logout */}
-      <div className="p-4 border-t border-[#577189]">
-        <Button
-          onClick={onLogout}
-          variant="ghost"
-          className="w-full justify-start text-[#c1d3e0] hover:bg-[#3d5a80] hover:text-white"
-        >
-          <LogOut size={20} className="mr-3" />
-          Logout
-        </Button>
-      </div>
+      
+      {/* You can add a user/logout section here later */}
+      {/* <div className="mt-auto"> ... </div> */}
     </div>
   );
 }

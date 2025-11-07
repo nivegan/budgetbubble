@@ -4,8 +4,11 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Users, UserPlus, Trash2, FileText, DollarSign, Edit } from 'lucide-react';
+import { Users, UserPlus, Trash2, FileText, DollarSign, Edit, Mail } from 'lucide-react';
 import { householdAPI, userAPI, templateAPI } from '../utils/api';
+import { Switch } from './ui/switch'; // <-- Import Switch
+import { Label } from './ui/label'; // <-- Import Label
+import { toast } from 'sonner'; // <-- Import toast
 
 interface SettingsProps {
   accessToken: string;
@@ -22,6 +25,12 @@ export function Settings({ accessToken, user, household, onHouseholdUpdate }: Se
   const [householdName, setHouseholdName] = useState(household?.name || '');
   const [currency, setCurrency] = useState(household?.currency || 'USD');
 
+  // New state for communication preferences
+  const [comms, setComms] = useState({
+    monthlySummary: household?.monthlySummary || false,
+    annualSummary: household?.annualSummary || false,
+  });
+
   useEffect(() => {
     loadTemplates();
   }, []);
@@ -29,6 +38,10 @@ export function Settings({ accessToken, user, household, onHouseholdUpdate }: Se
   useEffect(() => {
     setHouseholdName(household?.name || '');
     setCurrency(household?.currency || 'USD');
+    setComms({
+      monthlySummary: household?.monthlySummary || false,
+      annualSummary: household?.annualSummary || false,
+    });
   }, [household]);
 
   const loadTemplates = async () => {
@@ -37,30 +50,39 @@ export function Settings({ accessToken, user, household, onHouseholdUpdate }: Se
       setTemplates(data.templates || []);
     } catch (error) {
       console.error('Failed to load templates:', error);
+      toast.error('Failed to load templates.');
     }
   };
 
-  const handleUpdateHousehold = async () => {
+  const handleUpdateHousehold = async (dataToUpdate: any, successMessage: string) => {
     setLoading(true);
     try {
-      await householdAPI.update(household.id, { 
-        name: householdName,
-        currency: currency,
-      }, accessToken);
+      await householdAPI.update(household.id, dataToUpdate, accessToken);
       setEditing(false);
       onHouseholdUpdate();
-      alert('Household updated successfully');
+      toast.success(successMessage);
     } catch (error) {
       console.error('Failed to update household:', error);
-      alert('Failed to update household');
+      toast.error('Failed to update household.');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSaveInfo = () => {
+    handleUpdateHousehold({
+      name: householdName,
+      currency: currency,
+    }, 'Household info updated!');
+  };
+
+  const handleSaveComms = () => {
+    handleUpdateHousehold(comms, 'Communication preferences saved!');
+  };
+
   const handleInviteMember = async () => {
     if (!inviteEmail) {
-      alert('Please enter an email address');
+      toast.error('Please enter an email address');
       return;
     }
 
@@ -69,10 +91,10 @@ export function Settings({ accessToken, user, household, onHouseholdUpdate }: Se
       await householdAPI.addMember(household.id, inviteEmail, accessToken);
       setInviteEmail('');
       onHouseholdUpdate();
-      alert('Member invited successfully');
+      toast.success('Member invited successfully');
     } catch (error) {
       console.error('Failed to invite member:', error);
-      alert(error instanceof Error ? error.message : 'Failed to invite member');
+      toast.error(error instanceof Error ? error.message : 'Failed to invite member');
     } finally {
       setLoading(false);
     }
@@ -84,10 +106,10 @@ export function Settings({ accessToken, user, household, onHouseholdUpdate }: Se
     try {
       await householdAPI.removeMember(household.id, memberId, accessToken);
       onHouseholdUpdate();
-      alert('Member removed successfully');
+      toast.success('Member removed successfully');
     } catch (error) {
       console.error('Failed to remove member:', error);
-      alert(error instanceof Error ? error.message : 'Failed to remove member');
+      toast.error(error instanceof Error ? error.message : 'Failed to remove member');
     }
   };
 
@@ -165,7 +187,7 @@ export function Settings({ accessToken, user, household, onHouseholdUpdate }: Se
                   Cancel
                 </Button>
                 <Button
-                  onClick={handleUpdateHousehold}
+                  onClick={handleSaveInfo}
                   className="flex-1 bg-[#69d2bb] hover:bg-[#5bc4ab] text-[#2c3e50]"
                   disabled={loading}
                 >
@@ -188,6 +210,52 @@ export function Settings({ accessToken, user, household, onHouseholdUpdate }: Se
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* --- NEW CARD FOR COMMUNICATION PREFS --- */}
+      <Card className="bg-[#3d5a80] border-[#577189]">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Mail size={20} className="text-[#69d2bb]" />
+            Communication Preferences
+          </CardTitle>
+          <CardDescription className="text-[#c1d3e0]">
+            Manage automated email reports for all household members.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-[#34495e] rounded-lg border border-[#577189]">
+            <div>
+              <Label htmlFor="monthly-summary" className="text-white">Monthly Summary Emails</Label>
+              <p className="text-xs text-[#a7b8c5]">Send a summary of income vs. expenses at the end of each month.</p>
+            </div>
+            <Switch
+              id="monthly-summary"
+              checked={comms.monthlySummary}
+              onCheckedChange={(checked) => setComms({ ...comms, monthlySummary: checked })}
+              className="data-[state=checked]:bg-[#69d2bb]"
+            />
+          </div>
+          <div className="flex items-center justify-between p-4 bg-[#34495e] rounded-lg border border-[#577189]">
+            <div>
+              <Label htmlFor="annual-summary" className="text-white">Annual Summary Emails</Label>
+              <p className="text-xs text-[#a7b8c5]">Send a comprehensive financial report at the end of the year.</p>
+            </div>
+            <Switch
+              id="annual-summary"
+              checked={comms.annualSummary}
+              onCheckedChange={(checked) => setComms({ ...comms, annualSummary: checked })}
+              className="data-[state=checked]:bg-[#69d2bb]"
+            />
+          </div>
+          <Button
+            onClick={handleSaveComms}
+            className="w-full bg-[#69d2bb] hover:bg-[#5bc4ab] text-[#2c3e50]"
+            disabled={loading}
+          >
+            {loading ? 'Saving...' : 'Save Preferences'}
+          </Button>
         </CardContent>
       </Card>
 

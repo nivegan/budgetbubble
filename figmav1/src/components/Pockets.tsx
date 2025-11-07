@@ -4,28 +4,19 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Progress } from './ui/progress';
-import { Plus, Target, Calendar, Archive, ArrowUp, ArrowDown, Users, Edit, Trash2 } from 'lucide-react'; // Added Edit, Trash2
+import { Plus, Target, Calendar, Archive, ArrowUp, ArrowDown, Users, Edit, Trash2 } from 'lucide-react';
 import { goalAPI, transactionAPI } from '../utils/api';
 import { Badge } from './ui/badge';
+import { formatCurrency } from '../utils/helpers'; // <-- Import formatter
+import { toast } from 'sonner'; // <-- Import toast
 
 interface PocketsProps {
   accessToken: string;
   householdId: string;
   isPersonalView: boolean;
   onToggleView: () => void;
-  // Prop for currency (Item 6)
-  householdCurrency: string; 
+  householdCurrency: string; // <-- Prop for currency
 }
-
-// Helper function for Item 6
-const formatCurrency = (amount: number, currency: string) => {
-  try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD' }).format(amount);
-  } catch (e) {
-    // Fallback for unknown currency
-    return `$${amount.toFixed(2)}`;
-  }
-};
 
 export function Pockets({ accessToken, householdId, isPersonalView, onToggleView, householdCurrency }: PocketsProps) {
   const [pockets, setPockets] = useState<any[]>([]);
@@ -66,6 +57,7 @@ export function Pockets({ accessToken, householdId, isPersonalView, onToggleView
 
     } catch (error) {
       console.error('Failed to load pockets:', error);
+      toast.error('Failed to load pockets.');
     } finally {
       setLoading(false);
     }
@@ -83,7 +75,12 @@ export function Pockets({ accessToken, householdId, isPersonalView, onToggleView
 
   // Handles both Create and Update
   const handleSavePocket = async () => {
+    if (!formData.name) {
+      toast.error('Pocket name is required.');
+      return;
+    }
     setIsSubmitting(true); // Item 4: Prevent double click
+    
     try {
       const data = {
         name: formData.name,
@@ -91,7 +88,6 @@ export function Pockets({ accessToken, householdId, isPersonalView, onToggleView
         targetDate: formData.targetDate || null,
         type: 'contribution',
         householdId,
-        status: 'active', // Item 5: Default to active
       };
 
       if (editingPocket) {
@@ -101,9 +97,14 @@ export function Pockets({ accessToken, householdId, isPersonalView, onToggleView
           targetAmount: data.targetAmount,
           targetDate: data.targetDate,
         }, householdId, accessToken);
+        toast.success('Pocket updated!');
       } else {
         // Create new pocket
-        await goalAPI.create(data, accessToken);
+        await goalAPI.create({
+          ...data,
+          status: 'active', // Item 5: Default to active
+        }, accessToken);
+        toast.success('Pocket created!');
       }
 
       setShowAddDialog(false);
@@ -112,7 +113,7 @@ export function Pockets({ accessToken, householdId, isPersonalView, onToggleView
       loadData();
     } catch (error) {
       console.error('Failed to save pocket:', error);
-      alert('Failed to save pocket');
+      toast.error('Failed to save pocket.');
     } finally {
       setIsSubmitting(false); // Item 4: Re-enable button
     }
@@ -122,27 +123,35 @@ export function Pockets({ accessToken, householdId, isPersonalView, onToggleView
   const handleDeletePocket = async (pocketId: string) => {
     if (!confirm('Are you sure you want to permanently delete this pocket? This action cannot be undone.')) return;
     try {
-      // You will need to create goalAPI.delete in your api.tsx file
+      // You must create goalAPI.delete in your api.tsx file
+      // It should look like:
+      // delete: async (id: string, householdId: string, token: string) => {
+      //   return apiRequest(`/goals?id=eq.${id}&householdId=eq.${householdId}`, token, 'DELETE');
+      // },
       await goalAPI.delete(pocketId, householdId, accessToken); 
+      toast.success('Pocket deleted.');
       loadData();
     } catch (error) {
       console.error('Failed to delete pocket:', error);
-      alert('Failed to delete pocket. Please ensure goalAPI.delete is implemented.');
+      toast.error('Failed to delete pocket. (Ensure goalAPI.delete is implemented)');
     }
   };
 
   const handleMoneyMove = async () => {
     if (!selectedPocket) return;
     const amount = parseFloat(moneyAmount);
-    if (isNaN(amount) || amount <= 0) return;
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Please enter a valid amount.');
+      return;
+    }
 
     if (!isAdding && amount > selectedPocket.currentAmount) {
-      alert("You cannot withdraw more than is in the pocket.");
+      toast.error("You cannot withdraw more than is in the pocket.");
       return;
     }
 
     if (isAdding && amount > availableToAssign) {
-      alert("You cannot add more than is available to assign.");
+      toast.error("You cannot add more than is available to assign.");
       return;
     }
 
@@ -152,12 +161,13 @@ export function Pockets({ accessToken, householdId, isPersonalView, onToggleView
     
     try {
       await goalAPI.update(selectedPocket.id, { currentAmount: newAmount }, householdId, accessToken);
-      loadData();
+      loadData(); // Reload all data to update totals
       setSelectedPocket(null);
       setMoneyAmount('');
+      toast.success('Money moved!');
     } catch (error) {
       console.error('Failed to move money:', error);
-      alert('Failed to move money');
+      toast.error('Failed to move money.');
     }
   };
 
@@ -165,10 +175,11 @@ export function Pockets({ accessToken, householdId, isPersonalView, onToggleView
     if (!confirm('Are you sure you want to mark this pocket as inactive? This will freeze its progress.')) return;
     try {
       await goalAPI.inactivate(pocketId, householdId, accessToken);
+      toast.success('Pocket marked as inactive.');
       loadData();
     } catch (error) {
       console.error('Failed to inactivate pocket:', error);
-      alert('Failed to inactivate pocket');
+      toast.error('Failed to inactivate pocket.');
     }
   };
   
@@ -189,13 +200,35 @@ export function Pockets({ accessToken, householdId, isPersonalView, onToggleView
     setFormData({ name: '', targetAmount: '', targetDate: '' });
     setShowAddDialog(true);
   };
-
+  
+  // CTA for personal view
   if (isPersonalView) {
-    // ... (rest of personal view code unchanged)
+    return (
+      <Card className="bg-[#3d5a80] border-[#577189]">
+        <CardContent className="py-12 text-center">
+          <Users className="w-16 h-16 mx-auto mb-4 text-[#577189]" />
+          <h3 className="text-xl font-semibold text-white mb-2">Pockets are a Household Feature</h3>
+          <p className="text-[#c1d3e0] mb-6">
+            Switch to your household view to create and manage shared savings pockets.
+          </p>
+          <Button
+            onClick={onToggleView}
+            className="bg-[#69d2bb] hover:bg-[#5bc4ab] text-[#2c3e50]"
+          >
+            <Users size={18} className="mr-2" />
+            Switch to Household View
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
   
   if (loading) {
-    // ... (rest of loading code unchanged)
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-[#c1d3e0]">Loading Pockets...</div>
+      </div>
+    );
   }
 
   const sortedPockets = [...pockets].sort((a, b) => {
@@ -234,7 +267,15 @@ export function Pockets({ accessToken, householdId, isPersonalView, onToggleView
 
       {/* Pockets List */}
       {pockets.length === 0 ? (
-         // ... (rest of no pockets code unchanged)
+        <Card className="bg-[#3d5a80] border-[#577189]">
+          <CardContent className="py-12 text-center">
+            <Target className="w-16 h-16 mx-auto mb-4 text-[#577189]" />
+            <p className="text-[#c1d3e0]">No pockets yet</p>
+            <p className="text-sm text-[#a7b8c5] mt-2">
+              Create a pocket to start assigning your savings.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedPockets.map((pocket) => {
@@ -295,7 +336,29 @@ export function Pockets({ accessToken, householdId, isPersonalView, onToggleView
                   {/* Action Buttons */}
                   {!isInactive && (
                     <div className="flex gap-2 pt-2 border-t border-[#577189]/50">
-                      {/* ... (Add/Withdraw buttons unchanged) ... */}
+                      <Button
+                        onClick={() => {
+                          setIsAdding(true);
+                          setMoneyAmount('');
+                          setSelectedPocket(pocket);
+                        }}
+                        variant="outline"
+                        className="flex-1 bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-400"
+                      >
+                        <ArrowUp size={16} className="mr-2" /> Add
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setIsAdding(false);
+                          setMoneyAmount('');
+                          setSelectedPocket(pocket);
+                        }}
+                        variant="outline"
+                        className="flex-1 bg-red-500/10 border-red-500/30 hover:bg-red-500/20 text-red-400"
+                        disabled={pocket.currentAmount === 0}
+                      >
+                        <ArrowDown size={16} className="mr-2" /> Withdraw
+                      </Button>
                     </div>
                   )}
                   
@@ -319,7 +382,10 @@ export function Pockets({ accessToken, householdId, isPersonalView, onToggleView
       {/* Add/Edit Pocket Dialog */}
       <Dialog open={showAddDialog} onOpenChange={(isOpen) => {
         setShowAddDialog(isOpen);
-        if (!isOpen) setEditingPocket(null); // Clear editing state on close
+        if (!isOpen) {
+          setEditingPocket(null); // Clear editing state on close
+          setFormData({ name: '', targetAmount: '', targetDate: '' }); // Clear form
+        }
       }}>
         <DialogContent className="bg-[#3d5a80] border-[#577189] text-white">
           <DialogHeader>
@@ -388,7 +454,25 @@ export function Pockets({ accessToken, householdId, isPersonalView, onToggleView
                 }
               </DialogDescription>
             </DialogHeader>
-            {/* ... (rest of dialog unchanged) ... */}
+            <div className="space-y-4">
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="Amount"
+                className="bg-[#34495e] border-[#577189] text-white"
+                value={moneyAmount}
+                onChange={(e) => setMoneyAmount(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleMoneyMove();
+                }}
+              />
+              <Button
+                onClick={handleMoneyMove}
+                className="w-full bg-[#69d2bb] hover:bg-[#5bc4ab] text-[#2c3e50]"
+              >
+                {isAdding ? 'Add to Pocket' : 'Withdraw from Pocket'}
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       )}
