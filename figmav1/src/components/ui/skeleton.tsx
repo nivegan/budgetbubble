@@ -1,4 +1,4 @@
-import { cn } from "../../utils/cn"; // Assuming utils is at src/utils/cn.ts
+import { cn } from "./utils" // Assuming utils is at src/utils/cn.ts
 
 function Skeleton({
   className,

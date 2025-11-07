@@ -138,7 +138,7 @@ export const templateAPI = {
 };
 
 /**
- * Goal API calls
+ * Pockets API calls (Renamed from goalAPI)
  */
 export const goalAPI = {
   getAll: (householdId: string, accessToken: string) =>
@@ -149,11 +149,20 @@ export const goalAPI = {
       method: 'POST',
       body: JSON.stringify(goal),
     }, accessToken),
-  
-  contribute: (goalId: string, amount: number, householdId: string, accessToken: string) =>
-    apiCall(`/goals/${goalId}/contribute`, {
+
+  update: (goalId: string, updates: any, householdId: string, accessToken: string) =>
+    apiCall(`/goals/${goalId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...updates, householdId }),
+    }, accessToken),
+
+  delete: (goalId: string, householdId: string, accessToken: string) =>
+    apiCall(`/goals/${goalId}?householdId=${householdId}`, { method: 'DELETE' }, accessToken),
+
+  inactivate: (goalId: string, householdId: string, accessToken: string) =>
+    apiCall(`/goals/${goalId}/inactive`, { 
       method: 'POST',
-      body: JSON.stringify({ amount, householdId }),
+      body: JSON.stringify({ householdId }),
     }, accessToken),
 };
 
@@ -161,18 +170,23 @@ export const goalAPI = {
  * Holdings API calls
  */
 export const holdingsAPI = {
-  getAll: (householdId: string, accessToken: string) =>
-    apiCall(`/holdings?householdId=${householdId}`, { method: 'GET' }, accessToken),
+  // UPDATED to support personal view
+  getAll: (householdId: string, personalView: boolean, accessToken: string) =>
+    apiCall(`/holdings?householdId=${householdId}&personalView=${personalView}`, { 
+      method: 'GET' 
+    }, accessToken),
   
+  // UPDATED to support personal flag
   create: (holding: any, accessToken: string) =>
     apiCall('/holdings', {
       method: 'POST',
       body: JSON.stringify(holding),
     }, accessToken),
   
-  update: (id: string, currentValue: number, householdId: string, accessToken: string) =>
+  // UPDATED to support personal view
+  update: (id: string, currentValue: number, householdId: string, personalView: boolean, accessToken: string) =>
     apiCall(`/holdings/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ currentValue, householdId }),
+      body: JSON.stringify({ currentValue, householdId, personalView }),
     }, accessToken),
 };
